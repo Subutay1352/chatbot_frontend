@@ -37,7 +37,7 @@ class ChatService {
         if (error.response?.status === 404) {
           throw new Error('Chat API endpoint bulunamadı.');
         }
-        if (error.response?.status >= 500) {
+        if (error.response?.status && error.response.status >= 500) {
           throw new Error('Sunucu hatası. Lütfen daha sonra tekrar deneyin.');
         }
         throw new Error(error.response?.data?.message || 'Bilinmeyen bir hata oluştu.');

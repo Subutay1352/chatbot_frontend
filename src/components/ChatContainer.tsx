@@ -1,8 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Message } from '../types/chat';
+import React, { useRef, useEffect } from 'react';
+import type { Message } from '../types/chat';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
-import { Bot, Loader2 } from 'lucide-react';
+import { Bot } from 'lucide-react';
 
 interface ChatContainerProps {
   messages: Message[];
@@ -28,28 +28,46 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
   }, [messages]);
 
   return (
-    <div className="flex flex-col h-full bg-gray-50">
+    <div className="flex flex-col h-full bg-black">
       {/* Header */}
-      <div className="flex items-center gap-3 p-4 bg-white border-b shadow-sm">
-        <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-          <Bot className="text-white" size={20} />
+      <div className="flex items-center gap-4 p-4 bg-gray-900 border-b border-gray-800">
+        <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center">
+          <Bot className="text-gray-300" size={20} />
         </div>
-        <div>
-          <h2 className="font-semibold text-gray-800">AI Chatbot</h2>
-          <p className="text-sm text-gray-500">Size nasıl yardımcı olabilirim?</p>
+        <div className="flex-1">
+          <h2 className="font-semibold text-white text-lg">ATTT Assistant</h2>
+          <p className="text-gray-400 text-sm">Online</p>
         </div>
+        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
       </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500">
-            <Bot size={48} className="mb-4 text-gray-300" />
-            <h3 className="text-lg font-medium mb-2">Merhaba! 👋</h3>
-            <p className="text-center max-w-md">
-              Ben AI asistanınızım. Size nasıl yardımcı olabilirim? 
-              Sorularınızı yazabilir, sohbet edebiliriz.
+          <div className="flex flex-col items-center justify-center h-full text-white px-6">
+            <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mb-6">
+              <Bot size={32} className="text-gray-300" />
+            </div>
+            
+            <h3 className="text-2xl font-semibold mb-3 text-white">
+              Merhaba! 👋
+            </h3>
+            
+            <p className="text-center text-gray-400 leading-relaxed mb-8">
+              Ben AI asistanınızım. Size nasıl yardımcı olabilirim?
             </p>
+            
+            <div className="flex flex-wrap gap-3 justify-center">
+              <div className="px-4 py-2 bg-gray-800 rounded-full border border-gray-700">
+                <span className="text-sm text-gray-300">💡 Soru sorabilirsiniz</span>
+              </div>
+              <div className="px-4 py-2 bg-gray-800 rounded-full border border-gray-700">
+                <span className="text-sm text-gray-300">🚀 Yardım alabilirsiniz</span>
+              </div>
+              <div className="px-4 py-2 bg-gray-800 rounded-full border border-gray-700">
+                <span className="text-sm text-gray-300">💬 Sohbet edebiliriz</span>
+              </div>
+            </div>
           </div>
         ) : (
           messages.map((message) => (
@@ -57,16 +75,21 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
           ))
         )}
         
-        {/* Loading indicator */}
+        {/* Loading indicator - Modern typing animation */}
         {isLoading && (
-          <div className="flex justify-start mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                <Bot size={16} className="text-gray-600" />
+          <div className="flex justify-start mb-3 px-4">
+            <div className="flex items-end gap-2">
+              <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
+                <Bot size={16} className="text-gray-300" />
               </div>
-              <div className="bg-gray-100 rounded-2xl px-4 py-2 flex items-center gap-2">
-                <Loader2 size={16} className="animate-spin text-gray-500" />
-                <span className="text-sm text-gray-600">Yazıyor...</span>
+              <div className="bg-gray-800 text-white rounded-3xl rounded-bl-md px-4 py-3">
+                <div className="flex items-center gap-1">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full typing-dot"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full typing-dot"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full typing-dot"></div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -88,7 +111,7 @@ const ChatContainer: React.FC<ChatContainerProps> = ({
       <ChatInput 
         onSendMessage={onSendMessage} 
         disabled={isLoading}
-        placeholder="Mesajınızı yazın..."
+        placeholder="Bir mesaj yazın..."
       />
     </div>
   );

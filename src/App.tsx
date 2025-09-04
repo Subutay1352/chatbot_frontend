@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { Message } from './types/chat';
+import { useState, useCallback } from 'react';
+import type { Message } from './types/chat';
 import ChatContainer from './components/ChatContainer';
 import { chatService } from './services/chatService';
 import './App.css';
@@ -52,8 +52,8 @@ function App() {
   }, [sessionId]);
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="max-w-4xl mx-auto h-screen flex flex-col">
+    <div className="min-h-screen dark bg-background text-foreground">
+      <div className="w-full max-w-md sm:max-w-lg md:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto h-screen flex flex-col">
         <ChatContainer
           messages={messages}
           onSendMessage={handleSendMessage}
