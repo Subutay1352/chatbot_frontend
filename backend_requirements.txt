@@ -1,0 +1,455 @@
+GO BACKEND GEREKSİNİMLERİ - CHATBOT UYGULAMASI
+================================================
+
+1. TEMEL YAPILANDIRMA
+====================
+
+Klasör Yapısı:
+chatbot_backend/
+├── main.go
+├── go.mod
+├── go.sum
+├── handlers/
+│   ├── chat.go
+│   ├── sessions.go
+│   └── modes.go
+├── models/
+│   ├── message.go
+│   ├── session.go
+│   └── mode.go
+├── services/
+│   ├── chat_service.go
+│   └── ai_service.go
+├── middleware/
+│   ├── cors.go
+│   └── auth.go
+└── config/
+    └── config.go
+
+2. GO.MOD DOSYASI
+=================
+
+module chatbot_backend
+
+go 1.21
+
+require (
+    github.com/gin-gonic/gin v1.9.1
+    github.com/gin-contrib/cors v1.4.0
+    github.com/google/uuid v1.3.0
+    github.com/joho/godotenv v1.4.0
+    gorm.io/gorm v1.25.4
+    gorm.io/driver/sqlite v1.5.4
+    github.com/gorilla/websocket v1.5.0
+)
+
+3. API ENDPOINT'LERİ
+====================
+
+Chat Endpoints:
+POST /api/chat/send          // Mesaj gönder
+POST /api/chat/regenerate    // Mesajı yeniden oluştur
+GET  /api/chat/messages/:id  // Mesajları getir
+POST /api/chat/voice         // Ses mesajı gönder
+
+Session Endpoints:
+GET    /api/sessions         // Tüm oturumları getir
+POST   /api/sessions         // Yeni oturum oluştur
+GET    /api/sessions/:id     // Belirli oturumu getir
+PUT    /api/sessions/:id     // Oturumu güncelle
+DELETE /api/sessions/:id     // Oturumu sil
+POST   /api/sessions/:id/favorite // Favoriye ekle/çıkar
+
+Mode Endpoints:
+GET /api/modes              // Tüm bot kişiliklerini getir
+GET /api/modes/:id          // Belirli kişiliği getir
+
+WebSocket:
+GET /ws/chat/:sessionId     // Real-time mesajlaşma
+
+4. VERİ MODELLERİ
+=================
+
+Message Model:
+type Message struct {
+    ID              string    `json:"id" gorm:"primaryKey"`
+    Content         string    `json:"content"`
+    Sender          string    `json:"sender"` // "user" | "bot"
+    Timestamp       time.Time `json:"timestamp"`
+    MessageType     string    `json:"messageType"` // "text" | "code" | "image" | "link"
+    IsTyping        bool      `json:"isTyping"`
+    IsFavorite      bool      `json:"isFavorite"`
+    IsRegenerated   bool      `json:"isRegenerated"`
+    OriginalMessageID string  `json:"originalMessageId,omitempty"`
+    SessionID       string    `json:"sessionId"`
+    Reactions       []Reaction `json:"reactions" gorm:"foreignKey:MessageID"`
+    Metadata        Metadata  `json:"metadata" gorm:"embedded"`
+}
+
+Reaction Model:
+type Reaction struct {
+    ID        string `json:"id" gorm:"primaryKey"`
+    Emoji     string `json:"emoji"`
+    Count     int    `json:"count"`
+    Users     string `json:"users"` // JSON array as string
+    MessageID string `json:"messageId"`
+}
+
+Metadata Model:
+type Metadata struct {
+    Language    string      `json:"language,omitempty"`
+    CodeBlock   bool        `json:"codeBlock,omitempty"`
+    LinkPreview LinkPreview `json:"linkPreview,omitempty" gorm:"embedded"`
+}
+
+LinkPreview Model:
+type LinkPreview struct {
+    Title       string `json:"title"`
+    Description string `json:"description"`
+    Image       string `json:"image,omitempty"`
+    URL         string `json:"url"`
+    Domain      string `json:"domain"`
+}
+
+Session Model:
+type Session struct {
+    ID          string    `json:"id" gorm:"primaryKey"`
+    Title       string    `json:"title"`
+    CreatedAt   time.Time `json:"createdAt"`
+    UpdatedAt   time.Time `json:"updatedAt"`
+    IsFavorite  bool      `json:"isFavorite"`
+    ModeID      string    `json:"modeId"`
+    Mode        Mode      `json:"mode" gorm:"foreignKey:ModeID"`
+    Messages    []Message `json:"messages" gorm:"foreignKey:SessionID"`
+}
+
+Mode Model:
+type Mode struct {
+    ID          string `json:"id" gorm:"primaryKey"`
+    Name        string `json:"name"`
+    Description string `json:"description"`
+    Personality string `json:"personality"`
+    Avatar      string `json:"avatar"`
+    Color       string `json:"color"`
+}
+
+5. REQUEST/RESPONSE FORMATLARI
+==============================
+
+Send Message Request:
+type SendMessageRequest struct {
+    Message   string `json:"message" binding:"required"`
+    SessionID string `json:"sessionId,omitempty"`
+    ModeID    string `json:"modeId,omitempty"`
+}
+
+Send Message Response:
+type SendMessageResponse struct {
+    Message   Message `json:"message"`
+    SessionID string  `json:"sessionId"`
+}
+
+Voice Message Request:
+type VoiceMessageRequest struct {
+    AudioData string `json:"audioData"` // Base64 encoded audio
+    SessionID string `json:"sessionId,omitempty"`
+    ModeID    string `json:"modeId,omitempty"`
+}
+
+Regenerate Message Request:
+type RegenerateMessageRequest struct {
+    MessageID string `json:"messageId" binding:"required"`
+    SessionID string `json:"sessionId" binding:"required"`
+}
+
+Create Session Request:
+type CreateSessionRequest struct {
+    Title  string `json:"title"`
+    ModeID string `json:"modeId" binding:"required"`
+}
+
+Update Session Request:
+type UpdateSessionRequest struct {
+    Title      string `json:"title,omitempty"`
+    IsFavorite *bool  `json:"isFavorite,omitempty"`
+}
+
+6. CORS VE MIDDLEWARE AYARLARI
+==============================
+
+CORS Configuration:
+config := cors.DefaultConfig()
+config.AllowOrigins = []string{"http://localhost:5173", "http://127.0.0.1:5173"}
+config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
+
+7. AI SERVİSİ INTERFACE
+=======================
+
+type AIService interface {
+    SendMessage(message string, mode string) (string, error)
+    ProcessVoiceMessage(audioData []byte) (string, error)
+    RegenerateMessage(message string, mode string) (string, error)
+}
+
+8. WEBSOCKET YAPILANDIRMASI
+===========================
+
+WebSocket Hub:
+type Hub struct {
+    clients    map[*Client]bool
+    broadcast  chan []byte
+    register   chan *Client
+    unregister chan *Client
+}
+
+Client:
+type Client struct {
+    hub      *Hub
+    conn     *websocket.Conn
+    send     chan []byte
+    sessionID string
+}
+
+9. VERİTABANI YAPILANDIRMASI
+============================
+
+SQLite Configuration:
+db, err := gorm.Open(sqlite.Open("chatbot.db"), &gorm.Config{})
+if err != nil {
+    panic("failed to connect database")
+}
+
+Auto Migrate:
+db.AutoMigrate(&Session{}, &Message{}, &Reaction{}, &Mode{})
+
+10. DEFAULT BOT KİŞİLİKLERİ
+===========================
+
+Default Modes:
+[
+    {
+        "id": "assistant",
+        "name": "Asistan",
+        "description": "Genel amaçlı yardım",
+        "personality": "Yardımcı ve bilgilendirici",
+        "avatar": "🤖",
+        "color": "blue"
+    },
+    {
+        "id": "creative",
+        "name": "Yaratıcı",
+        "description": "Yaratıcı yazım ve fikirler",
+        "personality": "Yaratıcı ve ilham verici",
+        "avatar": "🎨",
+        "color": "purple"
+    },
+    {
+        "id": "friendly",
+        "name": "Arkadaş",
+        "description": "Samimi sohbet",
+        "personality": "Sıcak ve samimi",
+        "avatar": "😊",
+        "color": "green"
+    },
+    {
+        "id": "analytical",
+        "name": "Analitik",
+        "description": "Detaylı analiz",
+        "personality": "Mantıklı ve analitik",
+        "avatar": "🧠",
+        "color": "indigo"
+    },
+    {
+        "id": "developer",
+        "name": "Geliştirici",
+        "description": "Kod ve teknik yardım",
+        "personality": "Teknik ve detaylı",
+        "avatar": "💻",
+        "color": "gray"
+    },
+    {
+        "id": "quick",
+        "name": "Hızlı",
+        "description": "Kısa ve öz yanıtlar",
+        "personality": "Hızlı ve öz",
+        "avatar": "⚡",
+        "color": "yellow"
+    }
+]
+
+11. ERROR HANDLING
+==================
+
+Error Response Format:
+type ErrorResponse struct {
+    Error   string `json:"error"`
+    Message string `json:"message"`
+    Code    int    `json:"code"`
+}
+
+12. ENVIRONMENT VARIABLES
+=========================
+
+.env dosyası:
+PORT=8080
+DB_PATH=chatbot.db
+AI_API_KEY=your_ai_api_key_here
+AI_API_URL=https://api.openai.com/v1/chat/completions
+
+13. MAIN.GO YAPILANDIRMASI
+==========================
+
+func main() {
+    // Load environment variables
+    godotenv.Load()
+    
+    // Initialize database
+    db := initDB()
+    
+    // Initialize AI service
+    aiService := initAIService()
+    
+    // Initialize router
+    r := gin.Default()
+    
+    // Setup CORS
+    r.Use(cors.New(corsConfig))
+    
+    // Setup routes
+    setupRoutes(r, db, aiService)
+    
+    // Start server
+    port := os.Getenv("PORT")
+    if port == "" {
+        port = "8080"
+    }
+    r.Run(":" + port)
+}
+
+14. ROUTE SETUP
+===============
+
+func setupRoutes(r *gin.Engine, db *gorm.DB, aiService AIService) {
+    api := r.Group("/api")
+    
+    // Chat routes
+    chat := api.Group("/chat")
+    chat.POST("/send", sendMessage(db, aiService))
+    chat.POST("/regenerate", regenerateMessage(db, aiService))
+    chat.GET("/messages/:id", getMessages(db))
+    chat.POST("/voice", processVoiceMessage(db, aiService))
+    
+    // Session routes
+    sessions := api.Group("/sessions")
+    sessions.GET("", getSessions(db))
+    sessions.POST("", createSession(db))
+    sessions.GET("/:id", getSession(db))
+    sessions.PUT("/:id", updateSession(db))
+    sessions.DELETE("/:id", deleteSession(db))
+    sessions.POST("/:id/favorite", toggleFavorite(db))
+    
+    // Mode routes
+    modes := api.Group("/modes")
+    modes.GET("", getModes(db))
+    modes.GET("/:id", getMode(db))
+    
+    // WebSocket
+    r.GET("/ws/chat/:sessionId", handleWebSocket)
+}
+
+15. FRONTEND ENTEGRASYONU İÇİN GEREKLİ DEĞİŞİKLİKLER
+====================================================
+
+Frontend'te yapılacak değişiklikler:
+1. chatService.ts dosyasını gerçek API çağrıları yapacak şekilde güncelle
+2. LocalStorage kullanımını kaldır
+3. Tüm veri işlemlerini backend'den al
+4. WebSocket bağlantısı ekle
+5. Error handling'i geliştir
+6. Loading states'i backend response'larına göre ayarla
+
+16. TEST ENDPOINT'LERİ
+======================
+
+Test için kullanılabilecek curl komutları:
+
+# Mesaj gönder
+curl -X POST http://localhost:8080/api/chat/send \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Merhaba", "modeId": "assistant"}'
+
+# Oturumları getir
+curl -X GET http://localhost:8080/api/sessions
+
+# Yeni oturum oluştur
+curl -X POST http://localhost:8080/api/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"title": "Test Sohbet", "modeId": "assistant"}'
+
+# Bot kişiliklerini getir
+curl -X GET http://localhost:8080/api/modes
+
+17. DEPLOYMENT
+==============
+
+Dockerfile:
+FROM golang:1.21-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN go build -o main .
+
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates
+WORKDIR /root/
+COPY --from=builder /app/main .
+COPY --from=builder /app/.env .
+EXPOSE 8080
+CMD ["./main"]
+
+docker-compose.yml:
+version: '3.8'
+services:
+  chatbot-backend:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - DB_PATH=/data/chatbot.db
+    volumes:
+      - ./data:/data
+
+18. GÜVENLİK
+============
+
+Güvenlik önlemleri:
+1. Rate limiting
+2. Input validation
+3. SQL injection koruması (GORM ile otomatik)
+4. CORS ayarları
+5. Environment variables kullanımı
+6. Error message'ları gizleme
+
+19. LOGGING
+===========
+
+Logging yapılandırması:
+- Request/Response logging
+- Error logging
+- Performance monitoring
+- Database query logging
+
+20. PERFORMANS
+==============
+
+Performans optimizasyonları:
+1. Database indexing
+2. Connection pooling
+3. Caching (Redis)
+4. Pagination
+5. Lazy loading
+
+Bu dosyayı backend geliştiricisine vererek tam bir chatbot backend'i oluşturabilirsiniz.

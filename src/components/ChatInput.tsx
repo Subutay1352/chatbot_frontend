@@ -10,7 +10,7 @@ interface ChatInputProps {
 const ChatInput: React.FC<ChatInputProps> = ({ 
   onSendMessage, 
   disabled = false, 
-  placeholder = "Mesajınızı yazın..." 
+  placeholder = "Mesajınızı yazın..."
 }) => {
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
